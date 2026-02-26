@@ -10,7 +10,7 @@ export default function LoginPage() {
       const result = await signIn(formData);
       return result ?? null;
     },
-    null as { error?: string; success?: string } | null
+    null as { error?: string } | null
   );
 
   return (
@@ -49,11 +49,6 @@ export default function LoginPage() {
             Sign in
           </button>
         </form>
-        {state?.success && (
-          <p className="mt-4 text-center text-sm text-green-700 dark:text-green-400">
-            {state.success}
-          </p>
-        )}
         {state?.error && (
           <p className="mt-4 text-center text-sm text-red-600 dark:text-red-400">
             {state.error}
