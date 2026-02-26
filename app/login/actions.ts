@@ -11,10 +11,18 @@ async function getBaseUrl(): Promise<string> {
   const explicit = process.env.NEXT_PUBLIC_SITE_URL;
   if (explicit) return explicit.replace(/\/$/, "");
 
+  const vercelUrl = process.env.VERCEL_URL;
+  if (vercelUrl) return `https://${vercelUrl.replace(/\/$/, "")}`;
+
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host");
   const proto = h.get("x-forwarded-proto") ?? "https";
-  return host ? `${proto}://${host}` : "http://localhost:3000";
+  if (host) return `${proto}://${host}`;
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("Missing NEXT_PUBLIC_SITE_URL for production login callback.");
+  }
+  return "http://localhost:3000";
 }
 
 export async function signIn(formData: FormData) {
@@ -53,7 +61,18 @@ export async function signIn(formData: FormData) {
   });
 
   if (error) {
-    return { error: "Unable to send confirmation email right now. Please try again." };
+    const msg = error.message?.toLowerCase() ?? "";
+    if (msg.includes("redirect")) {
+      return { error: "Auth redirect URL is not allowed. Add your /auth/callback URL in Supabase Auth settings." };
+    }
+    if (msg.includes("email") && msg.includes("disabled")) {
+      return { error: "Supabase email auth is disabled. Enable Email provider in Supabase Auth settings." };
+    }
+    if (msg.includes("rate limit")) {
+      return { error: "Too many auth emails sent recently. Please wait and try again." };
+    }
+    console.error("signInWithOtp error:", error.message);
+    return { error: `Unable to send confirmation email right now. ${error.message}` };
   }
   return { success: "New device detected. Check your email for the confirmation link." };
 }
