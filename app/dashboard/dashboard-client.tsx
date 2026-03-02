@@ -36,6 +36,19 @@ const TIME_OPTIONS = Array.from({ length: 24 }, (_, i) => {
   return { value: `${hour.toString().padStart(2, "0")}:00`, label };
 });
 
+function formatDateHeading(value: string) {
+  const parsed = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", year: "numeric" });
+}
+
+function getRoomFeatures(roomName: string) {
+  if (roomName === "910") return ["Whiteboard", "Power outlets", "Wi-Fi"];
+  if (roomName === "911") return ["Monitor", "Power outlets", "Wi-Fi"];
+  if (roomName === "912") return ["Whiteboard", "Monitor", "Power outlets", "Wi-Fi", "Projector"];
+  return ["Power outlets", "Wi-Fi"];
+}
+
 function needsGroupConfirmation(room: Room): boolean {
   return room.name === "910" || room.name === "912";
 }
@@ -54,7 +67,6 @@ export function DashboardClient({ rooms, myBooking, userEmail }: Props) {
   const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
   const [roomsLoading, setRoomsLoading] = useState(true);
   const [bookingRoomId, setBookingRoomId] = useState<string | null>(null);
-  const [bookingConfirmed, setBookingConfirmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cancelLoading, setCancelLoading] = useState(false);
   const tzOffset = new Date().getTimezoneOffset();
@@ -92,7 +104,21 @@ export function DashboardClient({ rooms, myBooking, userEmail }: Props) {
     setError(null);
   }
 
-  async function handleBookRoom(roomId: string) {
+  function getEndTimeLabel(startValue: string, hours: number) {
+    const index = TIME_OPTIONS.findIndex((opt) => opt.value === startValue);
+    if (index < 0) return "12:00 am";
+    const endIndex = (index + hours) % TIME_OPTIONS.length;
+    return TIME_OPTIONS[endIndex]?.label ?? "12:00 am";
+  }
+
+  async function handleBookRoom(room: Room) {
+    const needsConfirmation = needsGroupConfirmation(room);
+    const hasConfirmedGroupBooking =
+      !needsConfirmation ||
+      window.confirm("Room 910/912 is for group study use. Do you confirm this booking is for a group?");
+    if (!hasConfirmedGroupBooking) return;
+
+    const roomId = room.id;
     setBookingRoomId(roomId);
     setError(null);
     const formData = new FormData();
@@ -101,7 +127,7 @@ export function DashboardClient({ rooms, myBooking, userEmail }: Props) {
     formData.set("start", start);
     formData.set("duration", String(duration));
     formData.set("tz_offset", String(tzOffset));
-    formData.set("booking_confirmed", bookingConfirmed ? "yes" : "no");
+    formData.set("booking_confirmed", hasConfirmedGroupBooking ? "yes" : "no");
     const result = await createBooking(formData);
     setBookingRoomId(null);
     if (result?.error) {
@@ -121,22 +147,32 @@ export function DashboardClient({ rooms, myBooking, userEmail }: Props) {
   }
 
   return (
-    <main className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
-      <header className="border-b border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4">
-          <Image 
-            src="/bu_logo.jpg" 
-            alt="BU Logo" 
-            width={40} 
-            height={40}
-          />
-          <h1 className="text-lg font-semibold text-neutral-900 dark:text-white">KHC Room Booking</h1>
+    <main className="min-h-screen bg-[#f5f5f5] text-[#1d1d1f]">
+      <header className="border-b border-[#d8d8d8] bg-[#f8f8f8]">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-8">
           <div className="flex items-center gap-4">
-            <span className="text-sm text-neutral-600 dark:text-neutral-400">Hello, {userEmail}</span>
+            <Image
+              src="/bu_logo.jpg"
+              alt="BU Reserve"
+              width={180}
+              height={56}
+              className="h-12 w-auto rounded-lg border border-[#dedee1] bg-white p-1"
+              priority
+            />
+            <div>
+              <h1 className="text-xl font-semibold leading-tight text-[#1d1d1f]">BU Reserve</h1>
+              <p className="text-sm text-[#606066]">Study Room Booking</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="hidden rounded-full bg-[#f3dfdf] px-4 py-2 text-sm font-semibold text-[#bf1313] sm:block">
+              {myBooking ? "1 booking" : "0 bookings"}
+            </div>
+            <span className="hidden text-sm text-[#606066] md:inline">{userEmail}</span>
             <form action={logout}>
               <button
                 type="submit"
-                className="text-sm text-red-600 hover:underline dark:text-red-400"
+                className="rounded-full border border-[#d5d5d7] bg-white px-4 py-1.5 text-sm font-medium text-[#3b3b41] transition hover:bg-[#efefef]"
               >
                 Sign out
               </button>
@@ -145,11 +181,81 @@ export function DashboardClient({ rooms, myBooking, userEmail }: Props) {
         </div>
       </header>
 
-      <div className="mx-auto max-w-4xl px-4 py-8">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-8">
+        <section className="mb-8 overflow-hidden rounded-2xl border border-[#d6d6d8] bg-white shadow-sm">
+          <Image
+            src="/banner.jpg"
+            alt="Study room booking banner"
+            width={1600}
+            height={500}
+            className="h-auto w-full object-cover"
+            priority
+          />
+        </section>
+
+        <div className="mb-8 inline-flex rounded-2xl bg-[#e8e8e8] p-1">
+          <div
+            className={`rounded-xl px-6 py-2 text-base font-medium transition ${
+              myBooking ? "text-[#69696f]" : "bg-white text-[#1d1d1f] shadow-[0_1px_0_rgba(0,0,0,0.08)]"
+            }`}
+          >
+            Book
+          </div>
+          <div
+            className={`rounded-xl px-6 py-2 text-base font-medium transition ${
+              myBooking ? "bg-white text-[#1d1d1f] shadow-[0_1px_0_rgba(0,0,0,0.08)]" : "text-[#69696f]"
+            }`}
+          >
+            My Bookings
+          </div>
+        </div>
+
+        <div className="mb-8 flex flex-wrap items-center gap-3">
+          <label className="relative">
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#66666b]">
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="4.5" width="18" height="16" rx="2" />
+                <path d="M16 2.5v4M8 2.5v4M3 9.5h18" />
+              </svg>
+            </span>
+            <select
+              value={date}
+              onChange={(e) => handleDateChange(e.target.value)}
+              className="h-12 rounded-2xl border border-[#ceced1] bg-white pl-11 pr-5 text-base font-medium text-[#1f1f21] shadow-sm outline-none transition focus:border-[#acacad]"
+            >
+              {dateOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.value === date ? formatDateHeading(opt.value) : opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="inline-flex rounded-xl bg-[#e7e7e7] p-1">
+            <button
+              type="button"
+              onClick={() => handleDurationChange(1)}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+                duration === 1 ? "bg-white text-[#222225] shadow" : "text-[#69696f]"
+              }`}
+            >
+              1 hour
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDurationChange(2)}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+                duration === 2 ? "bg-white text-[#222225] shadow" : "text-[#69696f]"
+              }`}
+            >
+              2 hours
+            </button>
+          </div>
+        </div>
+
         {myBooking ? (
-          <section className="mb-8 rounded-xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-            <h2 className="mb-4 text-lg font-semibold text-neutral-900 dark:text-white">Your booking</h2>
-            <p className="text-neutral-700 dark:text-neutral-300">
+          <section className="mb-8 rounded-2xl border border-[#d6d6d7] bg-white p-6 shadow-sm">
+            <h2 className="mb-4 text-xl font-semibold text-[#1d1d1f]">Your booking</h2>
+            <p className="text-base text-[#414148]">
               <strong>Room {myBooking.room?.name ?? "—"}</strong> (capacity {myBooking.room?.capacity ?? "—"}) •{" "}
               {new Date(myBooking.start_time).toLocaleString("en-GB", {
                 dateStyle: "medium",
@@ -162,129 +268,139 @@ export function DashboardClient({ rooms, myBooking, userEmail }: Props) {
               type="button"
               onClick={handleCancel}
               disabled={cancelLoading}
-              className="mt-4 rounded-lg bg-red-100 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/50 disabled:opacity-50"
+              className="mt-5 rounded-xl bg-[#d40000] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#b80000] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {cancelLoading ? "Cancelling…" : "Cancel booking"}
             </button>
-            <p className="mt-4 text-sm text-neutral-500 dark:text-neutral-400">
+            <p className="mt-4 text-sm text-[#6a6a70]">
               You can only have one booking at a time. Cancel this one to book another slot.
             </p>
-            <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">
+            <p className="mt-1 text-sm text-[#6a6a70]">
+              Booking is disabled while this reservation is active.
+            </p>
+            <p className="mt-2 text-sm text-[#47474d]">
               If someone is in your room during your reservation time, kindly show them your reservation on the website.
             </p>
           </section>
         ) : (
-          <section className="mb-8 rounded-xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-            <h2 className="mb-4 text-lg font-semibold text-neutral-900 dark:text-white">Book a room</h2>
-            <p className="mb-4 text-sm text-neutral-500 dark:text-neutral-400">
-              Select a time, then click Book on an available room.
-            </p>
-            <div className="space-y-4">
-              <div className="flex flex-wrap gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Date</label>
-                  <select
-                    value={date}
-                    onChange={(e) => handleDateChange(e.target.value)}
-                    className="mt-1 rounded-lg border border-neutral-300 bg-white px-4 py-2 dark:border-neutral-600 dark:bg-neutral-800 dark:text-white"
-                  >
-                    {dateOptions.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
+          <section className="mb-8 space-y-4">
+            <div className="grid gap-8 lg:grid-cols-[1.05fr_1.35fr]">
+              <div>
+                <h2 className="mb-3 text-sm font-semibold uppercase tracking-[0.12em] text-[#5f5f65]">Choose a room</h2>
+                <div className="space-y-3">
+                  {roomsLoading ? (
+                    <p className="rounded-2xl border border-[#d5d5d8] bg-white px-5 py-4 text-sm text-[#6a6a70]">Checking availability…</p>
+                  ) : availableRooms.length === 0 ? (
+                    <p className="rounded-2xl border border-[#eed2d2] bg-[#fff7f7] px-5 py-4 text-sm text-[#b92626]">
+                      No rooms available for this time.
+                    </p>
+                  ) : (
+                    availableRooms.map((r) => {
+                      return (
+                        <div
+                          key={r.id}
+                          className={`rounded-2xl border bg-white p-5 transition ${
+                            bookingRoomId === r.id
+                              ? "border-[#d40000] shadow-[0_0_0_2px_rgba(212,0,0,0.12)]"
+                              : "border-[#d6d6d8]"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <h3 className="text-2xl font-semibold leading-tight">Room {r.name}</h3>
+                              <p className="mt-1 text-sm text-[#66666c]">9th Floor</p>
+                            </div>
+                            <span className="rounded-full bg-[#efefef] px-3 py-1 text-xs font-semibold text-[#404046]">
+                              {r.capacity}
+                            </span>
+                          </div>
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            {getRoomFeatures(r.name).map((feature) => (
+                              <span
+                                key={feature}
+                                className="rounded-full bg-[#efefef] px-3 py-1 text-xs text-[#616168]"
+                              >
+                                {feature}
+                              </span>
+                            ))}
+                          </div>
+                          <div className="mt-4">
+                            <button
+                              type="button"
+                              onClick={() => handleBookRoom(r)}
+                              disabled={bookingRoomId !== null}
+                              className="rounded-xl bg-[#d40000] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#bc0000] disabled:cursor-not-allowed disabled:opacity-45"
+                            >
+                              {bookingRoomId === r.id ? "Booking…" : "Book room"}
+                            </button>
+                          </div>
+                          {needsGroupConfirmation(r) && (
+                            <p className="mt-2 text-xs text-[#7a7a81]">
+                              Group room: booking requires confirmation at checkout.
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Start time</label>
+              </div>
+              <div>
+                <h2 className="mb-3 text-lg font-semibold text-[#1d1d1f]">Select a time slot</h2>
+                <label className="block">
+                  <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-[#63636a]">Time slot</span>
                   <select
                     value={start}
                     onChange={(e) => handleStartChange(e.target.value)}
-                    className="mt-1 rounded-lg border border-neutral-300 bg-white px-4 py-2 dark:border-neutral-600 dark:bg-neutral-800 dark:text-white"
+                    className="w-full rounded-xl border border-[#ceced1] bg-white px-3 py-2 text-sm text-[#1f1f21] outline-none transition focus:border-[#acacad]"
                   >
                     {TIME_OPTIONS.map((opt) => (
                       <option key={opt.value} value={opt.value}>
-                        {opt.label}
+                        {opt.label} - {getEndTimeLabel(opt.value, duration)}
                       </option>
                     ))}
                   </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Duration</label>
-                  <select
-                    value={duration}
-                    onChange={(e) => handleDurationChange(Number(e.target.value) as 1 | 2)}
-                    className="mt-1 rounded-lg border border-neutral-300 bg-white px-4 py-2 dark:border-neutral-600 dark:bg-neutral-800 dark:text-white"
-                  >
-                    <option value={1}>1 hour</option>
-                    <option value={2}>2 hours</option>
-                  </select>
-                </div>
-              </div>
-              <label className="flex items-start gap-2 text-sm text-neutral-700 dark:text-neutral-300">
-                <input
-                  type="checkbox"
-                  checked={bookingConfirmed}
-                  onChange={(e) => setBookingConfirmed(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-neutral-300 text-red-600 focus:ring-red-500"
-                />
-                <span>I confirm I am booking room 910/912 for a group.</span>
-              </label>
-              <div>
-                <h3 className="mb-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">Available rooms</h3>
-                {roomsLoading ? (
-                  <p className="text-sm text-neutral-500 dark:text-neutral-400">Checking availability…</p>
-                ) : availableRooms.length === 0 ? (
-                  <p className="text-sm text-amber-600 dark:text-amber-400">No rooms available for this time.</p>
-                ) : (
-                  <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {availableRooms.map((r) => (
-                      <li
-                        key={r.id}
-                        className="flex items-center justify-between gap-4 rounded-lg border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-700 dark:bg-neutral-800/50"
-                      >
-                        <div>
-                          <span className="font-medium text-neutral-900 dark:text-white">Room {r.name}</span>
-                          <p className="text-sm text-neutral-500 dark:text-neutral-400">Capacity: {r.capacity}</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleBookRoom(r.id)}
-                          disabled={bookingRoomId !== null || (needsGroupConfirmation(r) && !bookingConfirmed)}
-                          className="shrink-0 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 dark:bg-red-500 dark:hover:bg-red-600"
-                        >
-                          {bookingRoomId === r.id ? "Booking…" : "Book"}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                </label>
+                <p className="mt-4 text-sm text-[#66666d]">
+                  Selected date: <span className="font-semibold text-[#2a2a2f]">{formatDateHeading(date)}</span>
+                </p>
+                <p className="mt-1 text-sm text-[#66666d]">
+                  Duration: <span className="font-semibold text-[#2a2a2f]">{duration} hour</span>
+                  {duration > 1 ? "s" : ""}
+                </p>
+                {error && (
+                  <p className="mt-3 rounded-xl border border-[#f0cdcd] bg-[#fff5f5] px-4 py-2 text-sm text-[#bd2929]">
+                    {error}
+                  </p>
                 )}
+                <div className="mt-5 text-sm text-[#66666d]">
+                  Pick a room on the left after selecting your time slot.
+                </div>
               </div>
-              {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
             </div>
           </section>
         )}
 
-        <section className="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-          <h2 className="mb-4 text-lg font-semibold text-neutral-900 dark:text-white">Rooms</h2>
+        <section className="rounded-2xl border border-[#d6d6d8] bg-white p-6 shadow-sm">
+          <h2 className="mb-4 text-xl font-semibold text-[#1d1d1f]">Rooms</h2>
           <ul className="grid gap-4 sm:grid-cols-3">
             {rooms.map((r) => (
               <li
                 key={r.id}
-                className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-700 dark:bg-neutral-800/50"
+                className="rounded-xl border border-[#dddddf] bg-[#fafafa] p-4"
               >
-                <span className="font-medium text-neutral-900 dark:text-white">Room {r.name}</span>
-                <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">Capacity: {r.capacity} (for your reference)</p>
+                <span className="text-lg font-semibold text-[#202025]">Room {r.name}</span>
+                <p className="mt-1 text-sm text-[#66666c]">Capacity: {r.capacity} (for your reference)</p>
               </li>
             ))}
           </ul>
-          <p className="mt-4 text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="mt-4 text-sm text-[#4f4f56]">
             Click on link{" "}
             <a
               href="https://docs.google.com/forms/d/e/1FAIpQLSehjkbrGa8JZqWs4_hDgCldju9R0DN6RgLCHouS2rJv8PjLFg/viewform?usp=publish-editor"
               target="_blank"
               rel="noreferrer"
-              className="text-red-600 underline hover:text-red-700 dark:text-red-400"
+              className="font-semibold text-[#c70000] underline hover:text-[#9f0000]"
             >
               here
             </a>{" "}
