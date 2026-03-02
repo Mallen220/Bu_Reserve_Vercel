@@ -67,6 +67,7 @@ export function DashboardClient({ rooms, myBooking, userEmail }: Props) {
   const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
   const [roomsLoading, setRoomsLoading] = useState(true);
   const [bookingRoomId, setBookingRoomId] = useState<string | null>(null);
+  const [bookingConfirmed, setBookingConfirmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cancelLoading, setCancelLoading] = useState(false);
   const tzOffset = new Date().getTimezoneOffset();
@@ -113,11 +114,10 @@ export function DashboardClient({ rooms, myBooking, userEmail }: Props) {
 
   async function handleBookRoom(room: Room) {
     const needsConfirmation = needsGroupConfirmation(room);
-    const hasConfirmedGroupBooking =
-      !needsConfirmation ||
-      window.confirm("Room 910/912 is for group study use. Do you confirm this booking is for a group?");
-    if (!hasConfirmedGroupBooking) return;
-
+    if (needsConfirmation && !bookingConfirmed) {
+      setError("Please confirm group booking for room 910 or 912.");
+      return;
+    }
     const roomId = room.id;
     setBookingRoomId(roomId);
     setError(null);
@@ -127,7 +127,7 @@ export function DashboardClient({ rooms, myBooking, userEmail }: Props) {
     formData.set("start", start);
     formData.set("duration", String(duration));
     formData.set("tz_offset", String(tzOffset));
-    formData.set("booking_confirmed", hasConfirmedGroupBooking ? "yes" : "no");
+    formData.set("booking_confirmed", bookingConfirmed ? "yes" : "no");
     const result = await createBooking(formData);
     setBookingRoomId(null);
     if (result?.error) {
@@ -145,6 +145,8 @@ export function DashboardClient({ rooms, myBooking, userEmail }: Props) {
     if (result?.error) setError(result.error);
     else router.refresh();
   }
+
+  const availableRoomIds = new Set(availableRooms.map((room) => room.id));
 
   return (
     <main className="min-h-screen bg-[#f5f5f5] text-[#1d1d1f]">
@@ -285,17 +287,61 @@ export function DashboardClient({ rooms, myBooking, userEmail }: Props) {
         ) : (
           <section className="mb-8 space-y-4">
             <div className="grid gap-8 lg:grid-cols-[1.05fr_1.35fr]">
-              <div>
+              <div className="order-1 lg:order-2">
+                <h2 className="mb-3 text-lg font-semibold text-[#1d1d1f]">Select a time slot</h2>
+                <label className="block">
+                  <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-[#63636a]">Time slot</span>
+                  <select
+                    value={start}
+                    onChange={(e) => handleStartChange(e.target.value)}
+                    className="w-full rounded-xl border border-[#ceced1] bg-white px-3 py-2 text-sm text-[#1f1f21] outline-none transition focus:border-[#acacad]"
+                  >
+                    {TIME_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label} - {getEndTimeLabel(opt.value, duration)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <p className="mt-4 text-sm text-[#66666d]">
+                  Selected date: <span className="font-semibold text-[#2a2a2f]">{formatDateHeading(date)}</span>
+                </p>
+                <p className="mt-1 text-sm text-[#66666d]">
+                  Duration: <span className="font-semibold text-[#2a2a2f]">{duration} hour</span>
+                  {duration > 1 ? "s" : ""}
+                </p>
+                <label className="mt-4 flex items-start gap-2 rounded-xl border border-[#d7d7d9] bg-white p-3 text-sm text-[#4c4c51]">
+                  <input
+                    type="checkbox"
+                    checked={bookingConfirmed}
+                    onChange={(e) => setBookingConfirmed(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-[#c6c6ca] text-[#d40000] focus:ring-[#d40000]"
+                  />
+                  <span>I confirm I am booking room 910/912 for a group.</span>
+                </label>
+                {error && (
+                  <p className="mt-3 rounded-xl border border-[#f0cdcd] bg-[#fff5f5] px-4 py-2 text-sm text-[#bd2929]">
+                    {error}
+                  </p>
+                )}
+                <div className="mt-5 text-sm text-[#66666d]">
+                  Pick a room below on mobile, or on the left on desktop.
+                </div>
+              </div>
+              <div className="order-2 lg:order-1">
                 <h2 className="mb-3 text-sm font-semibold uppercase tracking-[0.12em] text-[#5f5f65]">Choose a room</h2>
                 <div className="space-y-3">
                   {roomsLoading ? (
                     <p className="rounded-2xl border border-[#d5d5d8] bg-white px-5 py-4 text-sm text-[#6a6a70]">Checking availability…</p>
-                  ) : availableRooms.length === 0 ? (
-                    <p className="rounded-2xl border border-[#eed2d2] bg-[#fff7f7] px-5 py-4 text-sm text-[#b92626]">
-                      No rooms available for this time.
-                    </p>
                   ) : (
-                    availableRooms.map((r) => {
+                    <>
+                      {availableRooms.length === 0 && (
+                        <p className="rounded-2xl border border-[#eed2d2] bg-[#fff7f7] px-5 py-4 text-sm text-[#b92626]">
+                          No rooms available for this time.
+                        </p>
+                      )}
+                      {rooms.map((r) => {
+                        const isAvailable = availableRoomIds.has(r.id);
                       return (
                         <div
                           key={r.id}
@@ -328,12 +374,17 @@ export function DashboardClient({ rooms, myBooking, userEmail }: Props) {
                             <button
                               type="button"
                               onClick={() => handleBookRoom(r)}
-                              disabled={bookingRoomId !== null}
+                              disabled={!isAvailable || bookingRoomId !== null || (needsGroupConfirmation(r) && !bookingConfirmed)}
                               className="rounded-xl bg-[#d40000] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#bc0000] disabled:cursor-not-allowed disabled:opacity-45"
                             >
-                              {bookingRoomId === r.id ? "Booking…" : "Book room"}
+                              {!isAvailable ? "Unavailable" : bookingRoomId === r.id ? "Booking…" : "Book room"}
                             </button>
                           </div>
+                          {!isAvailable && (
+                            <p className="mt-2 text-xs text-[#7a7a81]">
+                              Not available for the selected date/time.
+                            </p>
+                          )}
                           {needsGroupConfirmation(r) && (
                             <p className="mt-2 text-xs text-[#7a7a81]">
                               Group room: booking requires confirmation at checkout.
@@ -341,40 +392,9 @@ export function DashboardClient({ rooms, myBooking, userEmail }: Props) {
                           )}
                         </div>
                       );
-                    })
+                      })}
+                    </>
                   )}
-                </div>
-              </div>
-              <div>
-                <h2 className="mb-3 text-lg font-semibold text-[#1d1d1f]">Select a time slot</h2>
-                <label className="block">
-                  <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-[#63636a]">Time slot</span>
-                  <select
-                    value={start}
-                    onChange={(e) => handleStartChange(e.target.value)}
-                    className="w-full rounded-xl border border-[#ceced1] bg-white px-3 py-2 text-sm text-[#1f1f21] outline-none transition focus:border-[#acacad]"
-                  >
-                    {TIME_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label} - {getEndTimeLabel(opt.value, duration)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <p className="mt-4 text-sm text-[#66666d]">
-                  Selected date: <span className="font-semibold text-[#2a2a2f]">{formatDateHeading(date)}</span>
-                </p>
-                <p className="mt-1 text-sm text-[#66666d]">
-                  Duration: <span className="font-semibold text-[#2a2a2f]">{duration} hour</span>
-                  {duration > 1 ? "s" : ""}
-                </p>
-                {error && (
-                  <p className="mt-3 rounded-xl border border-[#f0cdcd] bg-[#fff5f5] px-4 py-2 text-sm text-[#bd2929]">
-                    {error}
-                  </p>
-                )}
-                <div className="mt-5 text-sm text-[#66666d]">
-                  Pick a room on the left after selecting your time slot.
                 </div>
               </div>
             </div>
