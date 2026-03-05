@@ -49,10 +49,6 @@ function getRoomFeatures(roomName: string) {
   return ["Power outlets", "Wi-Fi"];
 }
 
-function needsGroupConfirmation(room: Room): boolean {
-  return room.name === "910" || room.name === "912";
-}
-
 type Props = {
   rooms: Room[];
   myBooking: (Booking & { room?: Room }) | null;
@@ -67,7 +63,6 @@ export function DashboardClient({ rooms, myBooking, userEmail }: Props) {
   const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
   const [roomsLoading, setRoomsLoading] = useState(true);
   const [bookingRoomId, setBookingRoomId] = useState<string | null>(null);
-  const [bookingConfirmed, setBookingConfirmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cancelLoading, setCancelLoading] = useState(false);
   const tzOffset = new Date().getTimezoneOffset();
@@ -113,11 +108,6 @@ export function DashboardClient({ rooms, myBooking, userEmail }: Props) {
   }
 
   async function handleBookRoom(room: Room) {
-    const needsConfirmation = needsGroupConfirmation(room);
-    if (needsConfirmation && !bookingConfirmed) {
-      setError("Please confirm group booking for room 910 or 912.");
-      return;
-    }
     const roomId = room.id;
     setBookingRoomId(roomId);
     setError(null);
@@ -127,7 +117,6 @@ export function DashboardClient({ rooms, myBooking, userEmail }: Props) {
     formData.set("start", start);
     formData.set("duration", String(duration));
     formData.set("tz_offset", String(tzOffset));
-    formData.set("booking_confirmed", bookingConfirmed ? "yes" : "no");
     const result = await createBooking(formData);
     setBookingRoomId(null);
     if (result?.error) {
@@ -310,15 +299,6 @@ export function DashboardClient({ rooms, myBooking, userEmail }: Props) {
                   Duration: <span className="font-semibold text-[#2a2a2f]">{duration} hour</span>
                   {duration > 1 ? "s" : ""}
                 </p>
-                <label className="mt-4 flex items-start gap-2 rounded-xl border border-[#d7d7d9] bg-white p-3 text-sm text-[#4c4c51]">
-                  <input
-                    type="checkbox"
-                    checked={bookingConfirmed}
-                    onChange={(e) => setBookingConfirmed(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 rounded border-[#c6c6ca] text-[#d40000] focus:ring-[#d40000]"
-                  />
-                  <span>I confirm I am booking room 910/912 for a group.</span>
-                </label>
                 {error && (
                   <p className="mt-3 rounded-xl border border-[#f0cdcd] bg-[#fff5f5] px-4 py-2 text-sm text-[#bd2929]">
                     {error}
@@ -371,7 +351,7 @@ export function DashboardClient({ rooms, myBooking, userEmail }: Props) {
                             <button
                               type="button"
                               onClick={() => handleBookRoom(r)}
-                              disabled={!isAvailable || bookingRoomId !== null || (needsGroupConfirmation(r) && !bookingConfirmed)}
+                              disabled={!isAvailable || bookingRoomId !== null}
                               className="rounded-xl bg-[#d40000] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#bc0000] disabled:cursor-not-allowed disabled:opacity-45"
                             >
                               {!isAvailable ? "Unavailable" : bookingRoomId === r.id ? "Booking…" : "Book room"}
@@ -380,11 +360,6 @@ export function DashboardClient({ rooms, myBooking, userEmail }: Props) {
                           {!isAvailable && (
                             <p className="mt-2 text-xs text-[#7a7a81]">
                               Not available for the selected date/time.
-                            </p>
-                          )}
-                          {needsGroupConfirmation(r) && (
-                            <p className="mt-2 text-xs text-[#7a7a81]">
-                              Group room: booking requires confirmation at checkout.
                             </p>
                           )}
                         </div>
