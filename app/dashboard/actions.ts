@@ -14,6 +14,26 @@ function addDays(d: Date, n: number): Date {
   return out;
 }
 
+function parseDateKey(dateStr: string): [number, number, number] | null {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    return null;
+  }
+  return [year, month, day];
+}
+
+function formatDateKeyFromUtc(date: Date, tzOffsetMinutes: number): string {
+  const localMs = date.getTime() - tzOffsetMinutes * 60 * 1000;
+  return new Date(localMs).toISOString().slice(0, 10);
+}
+
+function addDaysToDateKey(dateStr: string, days: number): string | null {
+  const parts = parseDateKey(dateStr);
+  if (!parts) return null;
+  const [year, month, day] = parts;
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
 function normalizeTzOffset(value: unknown): number {
   const parsed = Number(value);
   if (!Number.isInteger(parsed)) return 0;
@@ -22,12 +42,13 @@ function normalizeTzOffset(value: unknown): number {
 }
 
 function parseDateAndTimeAsUtc(dateStr: string, startStr: string, tzOffsetMinutes: number): Date | null {
-  const [year, month, day] = dateStr.split("-").map(Number);
+  const dateParts = parseDateKey(dateStr);
+  if (!dateParts) {
+    return null;
+  }
+  const [year, month, day] = dateParts;
   const [hours, minutes] = startStr.split(":").map(Number);
   if (
-    !Number.isInteger(year) ||
-    !Number.isInteger(month) ||
-    !Number.isInteger(day) ||
     !Number.isInteger(hours) ||
     !Number.isInteger(minutes)
   ) {
@@ -52,22 +73,22 @@ export async function createBooking(formData: FormData) {
   }
 
   // Parse date in user's local timezone and convert to UTC for storage
-  const [year, month, day] = dateStr.split('-').map(Number);
   const startTime = parseDateAndTimeAsUtc(dateStr, startStr, tzOffsetMinutes);
   if (!startTime) {
     return { error: "Invalid date or time." };
   }
   const endTime = new Date(startTime.getTime() + duration * 60 * 60 * 1000);
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const dateOnly = new Date(year, month - 1, day, 0, 0, 0, 0);
-  const maxDate = addDays(today, MAX_DAYS_AHEAD);
+  const todayKey = formatDateKeyFromUtc(new Date(), tzOffsetMinutes);
+  const maxDateKey = addDaysToDateKey(todayKey, MAX_DAYS_AHEAD);
+  if (!maxDateKey) {
+    return { error: "Invalid date or time." };
+  }
 
-  if (dateOnly < today) {
+  if (dateStr < todayKey) {
     return { error: "Cannot book in the past." };
   }
-  if (dateOnly > maxDate) {
+  if (dateStr > maxDateKey) {
     return { error: `Bookings are only allowed up to ${MAX_DAYS_AHEAD} days in advance.` };
   }
 
@@ -138,19 +159,20 @@ export async function getAvailableRooms(dateStr: string, startStr: string, durat
   return { rooms };
 }
 
-export async function getAvailableSlots(roomId: string, dateStr: string) {
+export async function getAvailableSlots(roomId: string, dateStr: string, tzOffsetMinutesRaw?: number) {
   await cleanupExpiredBookings();
   const supabase = createAdminClient();
-  const date = new Date(dateStr);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const maxDate = addDays(today, MAX_DAYS_AHEAD);
-  if (date < today || date > maxDate) return { slots: [] as { start: string; end: string }[] };
+  const tzOffsetMinutes = normalizeTzOffset(tzOffsetMinutesRaw);
+  const dayStart = parseDateAndTimeAsUtc(dateStr, "00:00", tzOffsetMinutes);
+  if (!dayStart) return { slots: [] as { start: string; end: string }[] };
 
-  const dayStart = new Date(date);
-  dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(date);
-  dayEnd.setHours(23, 59, 59, 999);
+  const todayKey = formatDateKeyFromUtc(new Date(), tzOffsetMinutes);
+  const maxDateKey = addDaysToDateKey(todayKey, MAX_DAYS_AHEAD);
+  if (!maxDateKey || dateStr < todayKey || dateStr > maxDateKey) {
+    return { slots: [] as { start: string; end: string }[] };
+  }
+
+  const dayEnd = addDays(dayStart, 1);
 
   const { data: existing } = await supabase
     .from("bookings")
@@ -168,10 +190,9 @@ export async function getAvailableSlots(roomId: string, dateStr: string) {
   for (let hour = 0; hour <= 23; hour++) {
     for (const duration of SLOT_DURATIONS) {
       if (duration === 2 && hour === 23) continue;
-      const start = new Date(date);
-      start.setHours(hour, 0, 0, 0);
-      const end = new Date(start);
-      end.setHours(end.getHours() + duration, 0, 0);
+      const start = parseDateAndTimeAsUtc(dateStr, `${hour.toString().padStart(2, "0")}:00`, tzOffsetMinutes);
+      if (!start) continue;
+      const end = new Date(start.getTime() + duration * 60 * 60 * 1000);
       const startTs = start.getTime();
       const endTs = end.getTime();
       const now = Date.now();
@@ -179,8 +200,8 @@ export async function getAvailableSlots(roomId: string, dateStr: string) {
       const overlaps = bookedRanges.some((r) => startTs < r.end && endTs > r.start);
       if (!overlaps) {
         slots.push({
-          start: start.toTimeString().slice(0, 5),
-          end: end.toTimeString().slice(0, 5),
+          start: `${hour.toString().padStart(2, "0")}:00`,
+          end: `${((hour + duration) % 24).toString().padStart(2, "0")}:00`,
         });
       }
     }
