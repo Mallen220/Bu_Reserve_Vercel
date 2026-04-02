@@ -184,23 +184,6 @@ export function DashboardClient({ rooms, myBooking, userEmail }: Props) {
           />
         </section>
 
-        <div className="mb-8 inline-flex rounded-2xl bg-[#e8e8e8] p-1">
-          <div
-            className={`rounded-xl px-6 py-2 text-base font-medium transition ${
-              myBooking ? "text-[#69696f]" : "bg-white text-[#1d1d1f] shadow-[0_1px_0_rgba(0,0,0,0.08)]"
-            }`}
-          >
-            Book
-          </div>
-          <div
-            className={`rounded-xl px-6 py-2 text-base font-medium transition ${
-              myBooking ? "bg-white text-[#1d1d1f] shadow-[0_1px_0_rgba(0,0,0,0.08)]" : "text-[#69696f]"
-            }`}
-          >
-            My Bookings
-          </div>
-        </div>
-
         <div className="mb-8 flex flex-wrap items-center gap-3">
           <label className="relative">
             <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#66666b]">
@@ -242,7 +225,6 @@ export function DashboardClient({ rooms, myBooking, userEmail }: Props) {
             </button>
           </div>
         </div>
-
         {myBooking ? (
           <section className="mb-8 rounded-2xl border border-[#d6d6d7] bg-white p-6 shadow-sm">
             <h2 className="mb-4 text-xl font-semibold text-[#1d1d1f]">Your booking</h2>
