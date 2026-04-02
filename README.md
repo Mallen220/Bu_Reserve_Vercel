@@ -38,12 +38,6 @@ Create `.env.local` in the project root with:
 - `SESSION_SECRET` – a long random string for signing session cookies (e.g. generate with `openssl rand -base64 32`).
 - `ADMIN_EMAIL` – the email address that can access `/admin` (e.g. your own email).
 - `ADMIN_PASSWORD` – password required to open the admin area after logging in as the admin; stored in env only, not in the database.
-- `DEV_AUTH_BYPASS` – optional; set to `true` in local dev to skip allowlist login checks and go straight to the portal (ignored in production).
-- `DEV_AUTH_BYPASS_EMAIL` – optional; email to place in the dev session when bypass is enabled (defaults to entered email, then `dev@local.test`).
-
-In non-production, local test mode also auto-enables when `NEXT_PUBLIC_SUPABASE_URL` or `SUPABASE_SERVICE_ROLE_KEY` is missing.
-
-Dev mode quick start (no Supabase required): set `DEV_AUTH_BYPASS=true` in `.env.local`.
 
 ### Local availability test data
 
@@ -57,7 +51,7 @@ In local test mode (`DEV_AUTH_BYPASS=true` or missing Supabase keys), room avail
    - Room 910: 09:00-10:00
    - Room 911: 13:00-15:00
 
-This makes some rooms unavailable at specific times, so the dashboard's "available rooms" filtering can be validated locally.
+This makes some rooms unavailable at specific times, so the dashboard's "available rooms" filtering can be validated locally. You can change these times/rooms easily in `local-test-mode.ts`
 
 ### 3. Run locally
 
@@ -66,7 +60,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000), click **Sign in to book**, and continue to the portal. (`dev@local.test` is valid in all local environments.)
+Open [http://localhost:3000](http://localhost:3000), click **Sign in to book**, and continue to the portal.
 
 ### 4. Deploy on Vercel
 
