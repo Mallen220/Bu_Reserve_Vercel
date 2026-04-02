@@ -49,6 +49,10 @@ function getRoomFeatures(roomName: string) {
   return ["Power outlets", "Wi-Fi"];
 }
 
+function toGoogleCalendarDate(value: string) {
+  return new Date(value).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+}
+
 type Props = {
   rooms: Room[];
   myBooking: (Booking & { room?: Room }) | null;
@@ -136,6 +140,10 @@ export function DashboardClient({ rooms, myBooking, userEmail }: Props) {
   }
 
   const availableRoomIds = new Set(availableRooms.map((room) => room.id));
+  // Google Calendar lets you make templates by formatting urls
+  const googleCalendarUrl = myBooking
+    ? `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(`BU Reserve - Room ${myBooking.room?.name ?? ""}`)}&dates=${toGoogleCalendarDate(myBooking.start_time)}/${toGoogleCalendarDate(myBooking.end_time)}&location=${encodeURIComponent(`Room ${myBooking.room?.name ?? ""}`)}&details=${encodeURIComponent("Booked via BU Reserve")}`
+    : null;
 
   return (
     <main className="min-h-screen bg-[#f5f5f5] text-[#1d1d1f]">
@@ -255,6 +263,20 @@ export function DashboardClient({ rooms, myBooking, userEmail }: Props) {
               –{" "}
               {new Date(myBooking.end_time).toLocaleString("en-GB", { timeStyle: "short" })}
             </p>
+            <div>
+            {googleCalendarUrl && (
+              <a
+                href={googleCalendarUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 inline-flex rounded-xl border border-[#d5d5d7] bg-white px-5 py-2.5 text-sm font-semibold text-[#3b3b41] transition hover:bg-[#efefef]"
+              >
+                Add to Google Calendar
+              </a>
+            )}
+            </div>
+
+
             <button
               type="button"
               onClick={handleCancel}
