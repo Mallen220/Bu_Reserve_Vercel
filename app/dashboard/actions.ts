@@ -4,6 +4,12 @@ import { createAdminClient } from "@/utils/supabase/admin";
 import { getSession } from "@/lib/session";
 import { cleanupExpiredBookings } from "@/lib/booking-cleanup";
 import { getLocalTestBookingSeeds, getLocalTestRooms, isLocalTestModeEnabled } from "@/lib/local-test-mode";
+import {
+  cancelLocalTestBooking,
+  createLocalTestBooking,
+  listLocalTestBookings,
+  listLocalTestBookingsForEmail,
+} from "@/lib/local-test-bookings";
 import { revalidatePath } from "next/cache";
 
 const MAX_DAYS_AHEAD = 7;
@@ -59,15 +65,30 @@ function parseDateAndTimeAsUtc(dateStr: string, startStr: string, tzOffsetMinute
   return new Date(utcMs);
 }
 
+function getLocalSeedBookedRoomIds(startTime: Date, endTime: Date, tzOffsetMinutes: number): Set<string> {
+  const rooms = getLocalTestRooms();
+  const roomIdByName = new Map(rooms.map((room) => [room.name, room.id]));
+  const todayKey = formatDateKeyFromUtc(new Date(), tzOffsetMinutes);
+  const roomIds = new Set<string>();
+
+  for (const seed of getLocalTestBookingSeeds()) {
+    const seedDate = addDaysToDateKey(todayKey, seed.dateOffsetDays);
+    if (!seedDate) continue;
+    const seedStart = parseDateAndTimeAsUtc(seedDate, seed.start, tzOffsetMinutes);
+    if (!seedStart) continue;
+    const seedEnd = new Date(seedStart.getTime() + seed.duration * 60 * 60 * 1000);
+    if (seedStart < endTime && seedEnd > startTime) {
+      const roomId = roomIdByName.get(seed.roomName);
+      if (roomId) roomIds.add(roomId);
+    }
+  }
+
+  return roomIds;
+}
+
 export async function createBooking(formData: FormData) {
   const session = await getSession();
   if (!session) return { error: "Not signed in." };
-
-  if (isLocalTestModeEnabled()) {
-    return { success: true };
-  }
-
-  await cleanupExpiredBookings();
 
   const roomId = formData.get("room_id") as string;
   const dateStr = formData.get("date") as string;
@@ -103,6 +124,42 @@ export async function createBooking(formData: FormData) {
     return { error: "Booking must end in the future." };
   }
 
+  if (isLocalTestModeEnabled()) {
+    const rooms = getLocalTestRooms();
+    const room = rooms.find((next) => next.id === roomId);
+    if (!room) {
+      return { error: "Room not found." };
+    }
+
+    const myBookings = listLocalTestBookingsForEmail(session.email);
+    if (myBookings.length > 0) {
+      return { error: "You can only have one booking at a time." };
+    }
+
+    const hasSeedConflict = getLocalSeedBookedRoomIds(startTime, endTime, tzOffsetMinutes).has(roomId);
+    const hasLocalConflict = listLocalTestBookings().some((booking) => {
+      if (booking.room_id !== roomId) return false;
+      const bookingStart = new Date(booking.start_time);
+      const bookingEnd = new Date(booking.end_time);
+      return bookingStart < endTime && bookingEnd > startTime;
+    });
+
+    if (hasSeedConflict || hasLocalConflict) {
+      return { error: "This room is already booked for the selected time." };
+    }
+
+    createLocalTestBooking({
+      email: session.email,
+      room_id: roomId,
+      start_time: startTime.toISOString(),
+      end_time: endTime.toISOString(),
+    });
+    revalidatePath("/dashboard");
+    return { success: true };
+  }
+
+  await cleanupExpiredBookings();
+
   const supabase = createAdminClient();
   const { data: room } = await supabase.from("rooms").select("id").eq("id", roomId).single();
   if (!room) {
@@ -128,6 +185,9 @@ export async function cancelBooking(bookingId: string) {
   if (!session) return { error: "Not signed in." };
 
   if (isLocalTestModeEnabled()) {
+    const cancelled = cancelLocalTestBooking(bookingId, session.email);
+    if (!cancelled) return { error: "Booking not found." };
+    revalidatePath("/dashboard");
     return { success: true };
   }
 
@@ -153,19 +213,12 @@ export async function getAvailableRooms(dateStr: string, startStr: string, durat
 
   if (isLocalTestModeEnabled()) {
     const rooms = getLocalTestRooms();
-    const roomIdByName = new Map(rooms.map((room) => [room.name, room.id]));
-    const todayKey = formatDateKeyFromUtc(new Date(), tzOffsetMinutes);
-
-    const overlappingRoomIds = new Set<string>();
-    for (const seed of getLocalTestBookingSeeds()) {
-      const seedDate = addDaysToDateKey(todayKey, seed.dateOffsetDays);
-      if (!seedDate) continue;
-      const seedStart = parseDateAndTimeAsUtc(seedDate, seed.start, tzOffsetMinutes);
-      if (!seedStart) continue;
-      const seedEnd = new Date(seedStart.getTime() + seed.duration * 60 * 60 * 1000);
-      if (seedStart < endTime && seedEnd > startTime) {
-        const roomId = roomIdByName.get(seed.roomName);
-        if (roomId) overlappingRoomIds.add(roomId);
+    const overlappingRoomIds = getLocalSeedBookedRoomIds(startTime, endTime, tzOffsetMinutes);
+    for (const booking of listLocalTestBookings()) {
+      const bookingStart = new Date(booking.start_time);
+      const bookingEnd = new Date(booking.end_time);
+      if (bookingStart < endTime && bookingEnd > startTime) {
+        overlappingRoomIds.add(booking.room_id);
       }
     }
 
@@ -213,6 +266,14 @@ export async function getAvailableSlots(roomId: string, dateStr: string, tzOffse
         return { start: seedStart.getTime(), end: seedEnd.getTime() };
       })
       .filter((range): range is { start: number; end: number } => Boolean(range));
+
+    for (const booking of listLocalTestBookings()) {
+      if (booking.room_id !== roomId) continue;
+      bookedRanges.push({
+        start: new Date(booking.start_time).getTime(),
+        end: new Date(booking.end_time).getTime(),
+      });
+    }
 
     const slots: { start: string; end: string }[] = [];
     for (let hour = 0; hour <= 23; hour++) {

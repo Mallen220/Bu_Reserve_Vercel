@@ -2,6 +2,7 @@ import { createAdminClient } from "@/utils/supabase/admin";
 import { getSession } from "@/lib/session";
 import { cleanupExpiredBookings } from "@/lib/booking-cleanup";
 import { getLocalTestRooms, isLocalTestModeEnabled } from "@/lib/local-test-mode";
+import { listLocalTestBookingsForEmail } from "@/lib/local-test-bookings";
 import { redirect } from "next/navigation";
 import { DashboardClient } from "./dashboard-client";
 
@@ -10,10 +11,13 @@ export default async function DashboardPage() {
   if (!session) redirect("/login");
 
   if (isLocalTestModeEnabled()) {
+    const rooms = getLocalTestRooms();
+    const roomById = new Map(rooms.map((room) => [room.id, room]));
+    const myBooking = listLocalTestBookingsForEmail(session.email)[0] ?? null;
     return (
       <DashboardClient
-        rooms={getLocalTestRooms()}
-        myBooking={null}
+        rooms={rooms}
+        myBooking={myBooking ? { ...myBooking, room: roomById.get(myBooking.room_id) } : null}
         userEmail={session.email}
       />
     );
