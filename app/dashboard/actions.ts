@@ -3,7 +3,7 @@
 import { createAdminClient } from "@/utils/supabase/admin";
 import { getSession } from "@/lib/session";
 import { cleanupExpiredBookings } from "@/lib/booking-cleanup";
-import { getLocalTestRooms, isLocalTestModeEnabled } from "@/lib/local-test-mode";
+import { getLocalTestBookingSeeds, getLocalTestRooms, isLocalTestModeEnabled } from "@/lib/local-test-mode";
 import { revalidatePath } from "next/cache";
 
 const MAX_DAYS_AHEAD = 7;
@@ -146,17 +146,35 @@ export async function cancelBooking(bookingId: string) {
 }
 
 export async function getAvailableRooms(dateStr: string, startStr: string, duration: number, tzOffsetMinutesRaw?: number) {
-  if (isLocalTestModeEnabled()) {
-    return { rooms: getLocalTestRooms() };
-  }
-
-  await cleanupExpiredBookings();
-  const supabase = createAdminClient();
-  
   const tzOffsetMinutes = normalizeTzOffset(tzOffsetMinutesRaw);
   const startTime = parseDateAndTimeAsUtc(dateStr, startStr, tzOffsetMinutes);
   if (!startTime) return { rooms: [] };
   const endTime = new Date(startTime.getTime() + duration * 60 * 60 * 1000);
+
+  if (isLocalTestModeEnabled()) {
+    const rooms = getLocalTestRooms();
+    const roomIdByName = new Map(rooms.map((room) => [room.name, room.id]));
+    const todayKey = formatDateKeyFromUtc(new Date(), tzOffsetMinutes);
+
+    const overlappingRoomIds = new Set<string>();
+    for (const seed of getLocalTestBookingSeeds()) {
+      const seedDate = addDaysToDateKey(todayKey, seed.dateOffsetDays);
+      if (!seedDate) continue;
+      const seedStart = parseDateAndTimeAsUtc(seedDate, seed.start, tzOffsetMinutes);
+      if (!seedStart) continue;
+      const seedEnd = new Date(seedStart.getTime() + seed.duration * 60 * 60 * 1000);
+      if (seedStart < endTime && seedEnd > startTime) {
+        const roomId = roomIdByName.get(seed.roomName);
+        if (roomId) overlappingRoomIds.add(roomId);
+      }
+    }
+
+    return { rooms: rooms.filter((room) => !overlappingRoomIds.has(room.id)) };
+  }
+
+  await cleanupExpiredBookings();
+  const supabase = createAdminClient();
+
   const startTs = startTime.toISOString();
   const endTs = endTime.toISOString();
 
@@ -175,19 +193,51 @@ export async function getAvailableRooms(dateStr: string, startStr: string, durat
 }
 
 export async function getAvailableSlots(roomId: string, dateStr: string, tzOffsetMinutesRaw?: number) {
+  const tzOffsetMinutes = normalizeTzOffset(tzOffsetMinutesRaw);
+
   if (isLocalTestModeEnabled()) {
-    return {
-      slots: [
-        { start: "09:00", end: "10:00" },
-        { start: "10:00", end: "11:00" },
-        { start: "11:00", end: "12:00" },
-      ],
-    };
+    const rooms = getLocalTestRooms();
+    const roomById = new Map(rooms.map((room) => [room.id, room]));
+    const room = roomById.get(roomId);
+    if (!room) return { slots: [] as { start: string; end: string }[] };
+
+    const todayKey = formatDateKeyFromUtc(new Date(), tzOffsetMinutes);
+    const bookedRanges = getLocalTestBookingSeeds()
+      .filter((seed) => seed.roomName === room.name)
+      .map((seed) => {
+        const seedDate = addDaysToDateKey(todayKey, seed.dateOffsetDays);
+        if (!seedDate) return null;
+        const seedStart = parseDateAndTimeAsUtc(seedDate, seed.start, tzOffsetMinutes);
+        if (!seedStart) return null;
+        const seedEnd = new Date(seedStart.getTime() + seed.duration * 60 * 60 * 1000);
+        return { start: seedStart.getTime(), end: seedEnd.getTime() };
+      })
+      .filter((range): range is { start: number; end: number } => Boolean(range));
+
+    const slots: { start: string; end: string }[] = [];
+    for (let hour = 0; hour <= 23; hour++) {
+      for (const duration of SLOT_DURATIONS) {
+        if (duration === 2 && hour === 23) continue;
+        const start = parseDateAndTimeAsUtc(dateStr, `${hour.toString().padStart(2, "0")}:00`, tzOffsetMinutes);
+        if (!start) continue;
+        const end = new Date(start.getTime() + duration * 60 * 60 * 1000);
+        const startTs = start.getTime();
+        const endTs = end.getTime();
+        if (endTs <= Date.now()) continue;
+        const overlaps = bookedRanges.some((range) => startTs < range.end && endTs > range.start);
+        if (!overlaps) {
+          slots.push({
+            start: `${hour.toString().padStart(2, "0")}:00`,
+            end: `${((hour + duration) % 24).toString().padStart(2, "0")}:00`,
+          });
+        }
+      }
+    }
+    return { slots };
   }
 
   await cleanupExpiredBookings();
   const supabase = createAdminClient();
-  const tzOffsetMinutes = normalizeTzOffset(tzOffsetMinutesRaw);
   const dayStart = parseDateAndTimeAsUtc(dateStr, "00:00", tzOffsetMinutes);
   if (!dayStart) return { slots: [] as { start: string; end: string }[] };
 
