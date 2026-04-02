@@ -201,48 +201,6 @@ export function DashboardClient({ rooms, myBooking, userEmail }: Props) {
           </div>
         </div>
 
-        <div className="mb-8 flex flex-wrap items-center gap-3">
-          <label className="relative">
-            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#66666b]">
-              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="3" y="4.5" width="18" height="16" rx="2" />
-                <path d="M16 2.5v4M8 2.5v4M3 9.5h18" />
-              </svg>
-            </span>
-            <select
-              value={date}
-              onChange={(e) => handleDateChange(e.target.value)}
-              className="h-12 rounded-2xl border border-[#ceced1] bg-white pl-11 pr-5 text-base font-medium text-[#1f1f21] shadow-sm outline-none transition focus:border-[#acacad]"
-            >
-              {dateOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.value === date ? formatDateHeading(opt.value) : opt.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="inline-flex rounded-xl bg-[#e7e7e7] p-1">
-            <button
-              type="button"
-              onClick={() => handleDurationChange(1)}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
-                duration === 1 ? "bg-white text-[#222225] shadow" : "text-[#69696f]"
-              }`}
-            >
-              1 hour
-            </button>
-            <button
-              type="button"
-              onClick={() => handleDurationChange(2)}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
-                duration === 2 ? "bg-white text-[#222225] shadow" : "text-[#69696f]"
-              }`}
-            >
-              2 hours
-            </button>
-          </div>
-        </div>
-
         {myBooking ? (
           <section className="mb-8 rounded-2xl border border-[#d6d6d7] bg-white p-6 shadow-sm">
             <h2 className="mb-4 text-xl font-semibold text-[#1d1d1f]">Your booking</h2>
@@ -278,20 +236,62 @@ export function DashboardClient({ rooms, myBooking, userEmail }: Props) {
             <div className="grid gap-8 lg:grid-cols-[1.05fr_1.35fr]">
               <div className="order-1 lg:order-2">
                 <h2 className="mb-3 text-lg font-semibold text-[#1d1d1f]">Select a time slot</h2>
-                <label className="block">
-                  <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-[#63636a]">Time slot</span>
-                  <select
-                    value={start}
-                    onChange={(e) => handleStartChange(e.target.value)}
-                    className="w-full rounded-xl border border-[#ceced1] bg-white px-3 py-2 text-sm text-[#1f1f21] outline-none transition focus:border-[#acacad]"
-                  >
-                    {TIME_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label} - {getEndTimeLabel(opt.value, duration)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <div className="flex flex-wrap items-end gap-3">
+                  <label className="relative">
+                    <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#66666b]">
+                      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="3" y="4.5" width="18" height="16" rx="2" />
+                        <path d="M16 2.5v4M8 2.5v4M3 9.5h18" />
+                      </svg>
+                    </span>
+                    <select
+                      value={date}
+                      onChange={(e) => handleDateChange(e.target.value)}
+                      className="h-12 rounded-2xl border border-[#ceced1] bg-white pl-11 pr-5 text-base font-medium text-[#1f1f21] shadow-sm outline-none transition focus:border-[#acacad]"
+                    >
+                      {dateOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.value === date ? formatDateHeading(opt.value) : opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="inline-flex rounded-xl bg-[#e7e7e7] p-1">
+                    <button
+                      type="button"
+                      onClick={() => handleDurationChange(1)}
+                      className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+                        duration === 1 ? "bg-white text-[#222225] shadow" : "text-[#69696f]"
+                      }`}
+                    >
+                      1 hour
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDurationChange(2)}
+                      className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+                        duration === 2 ? "bg-white text-[#222225] shadow" : "text-[#69696f]"
+                      }`}
+                    >
+                      2 hours
+                    </button>
+                  </div>
+                  <div className="basis-full" />
+                  <label className="block min-w-[180px] flex-1">
+                    <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-[#63636a]">Time slot</span>
+                    <select
+                      value={start}
+                      onChange={(e) => handleStartChange(e.target.value)}
+                      className="w-full rounded-xl border border-[#ceced1] bg-white px-3 py-2 text-sm text-[#1f1f21] outline-none transition focus:border-[#acacad]"
+                    >
+                      {TIME_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label} - {getEndTimeLabel(opt.value, duration)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
                 <p className="mt-4 text-sm text-[#66666d]">
                   Selected date: <span className="font-semibold text-[#2a2a2f]">{formatDateHeading(date)}</span>
                 </p>
