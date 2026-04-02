@@ -73,6 +73,20 @@ export function DashboardClient({ rooms, myBooking, userEmail }: Props) {
   const tzOffset = new Date().getTimezoneOffset();
 
   const dateOptions = getDateOptions();
+  const selectableTimeOptions = TIME_OPTIONS.filter((opt) => {
+    const startAt = new Date(`${date}T${opt.value}:00`);
+    if (Number.isNaN(startAt.getTime())) return false;
+    const endAt = new Date(startAt.getTime() + duration * 60 * 60 * 1000);
+    return endAt.getTime() > Date.now();
+  });
+
+  useEffect(() => {
+    if (!selectableTimeOptions.some((opt) => opt.value === start) && selectableTimeOptions.length > 0) {
+      setStart(selectableTimeOptions[0].value);
+      setRoomsLoading(true);
+      setError(null);
+    }
+  }, [start, selectableTimeOptions]);
 
   useEffect(() => {
     let cancelled = false;
@@ -286,15 +300,21 @@ export function DashboardClient({ rooms, myBooking, userEmail }: Props) {
                   <label className="block min-w-[180px] flex-1">
                     <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-[#63636a]">Time slot</span>
                     <select
-                      value={start}
+                      value={selectableTimeOptions.some((opt) => opt.value === start) ? start : ""}
                       onChange={(e) => handleStartChange(e.target.value)}
                       className="w-full rounded-xl border border-[#ceced1] bg-white px-3 py-2 text-sm text-[#1f1f21] outline-none transition focus:border-[#acacad]"
                     >
-                      {TIME_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label} - {getEndTimeLabel(opt.value, duration)}
+                      {selectableTimeOptions.length === 0 ? (
+                        <option value="" disabled>
+                          No time slots left today
                         </option>
-                      ))}
+                      ) : (
+                        selectableTimeOptions.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label} - {getEndTimeLabel(opt.value, duration)}
+                          </option>
+                        ))
+                      )}
                     </select>
                   </label>
                 </div>
