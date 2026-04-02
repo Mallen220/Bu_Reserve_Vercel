@@ -60,7 +60,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000), click **Sign in to book**, and continue to the portal.
+Open [http://localhost:3000](http://localhost:3000), click **Sign in to book**, enter an email, and you’re in—no link is sent.
 
 ### 4. Deploy on Vercel
 
