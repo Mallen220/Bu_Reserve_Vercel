@@ -45,6 +45,20 @@ In non-production, local test mode also auto-enables when `NEXT_PUBLIC_SUPABASE_
 
 Dev mode quick start (no Supabase required): set `DEV_AUTH_BYPASS=true` in `.env.local`.
 
+### Local availability test data
+
+In local test mode (`DEV_AUTH_BYPASS=true` or missing Supabase keys), room availability uses seeded bookings so you can test the availability UI without a database.
+
+- **Today**
+   - Room 910: 10:00-12:00
+   - Room 911: 11:00-12:00
+   - Room 912: 14:00-16:00
+- **Tomorrow**
+   - Room 910: 09:00-10:00
+   - Room 911: 13:00-15:00
+
+This makes some rooms unavailable at specific times, so the dashboard's "available rooms" filtering can be validated locally.
+
 ### 3. Run locally
 
 ```bash
