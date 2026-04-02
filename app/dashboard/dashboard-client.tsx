@@ -396,7 +396,7 @@ export function DashboardClient({ rooms, myBooking, userEmail }: Props) {
         )}
 
         <section className="rounded-2xl border border-[#d6d6d8] bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-xl font-semibold text-[#1d1d1f]">Rooms</h2>
+          <h2 className="mb-4 text-xl font-semibold text-[#1d1d1f]">Rooms (for reference)</h2>
           <ul className="grid gap-4 sm:grid-cols-3">
             {rooms.map((r) => (
               <li
@@ -404,7 +404,7 @@ export function DashboardClient({ rooms, myBooking, userEmail }: Props) {
                 className="rounded-xl border border-[#dddddf] bg-[#fafafa] p-4"
               >
                 <span className="text-lg font-semibold text-[#202025]">Room {r.name}</span>
-                <p className="mt-1 text-sm text-[#66666c]">Capacity: {r.capacity} (for your reference)</p>
+                <p className="mt-1 text-sm text-[#66666c]">Capacity: {r.capacity}</p>
               </li>
             ))}
           </ul>
