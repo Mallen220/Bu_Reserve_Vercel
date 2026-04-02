@@ -22,9 +22,10 @@ function getDateOptions() {
   for (let i = 0; i <= MAX_DAYS; i++) {
     const d = new Date(today);
     d.setDate(d.getDate() + i);
+    const dateValue = formatLocalDate(d);
     options.push({
-      value: formatLocalDate(d),
-      label: i === 0 ? "Today" : i === 1 ? "Tomorrow" : d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }),
+      value: dateValue,
+      label: i === 0 ? "Today" : i === 1 ? "Tomorrow" : formatDateHeading(dateValue),
     });
   }
   return options;
@@ -251,7 +252,7 @@ export function DashboardClient({ rooms, myBooking, userEmail }: Props) {
                     >
                       {dateOptions.map((opt) => (
                         <option key={opt.value} value={opt.value}>
-                          {opt.value === date ? formatDateHeading(opt.value) : opt.label}
+                          {opt.label}
                         </option>
                       ))}
                     </select>
