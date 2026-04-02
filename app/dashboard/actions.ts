@@ -3,6 +3,7 @@
 import { createAdminClient } from "@/utils/supabase/admin";
 import { getSession } from "@/lib/session";
 import { cleanupExpiredBookings } from "@/lib/booking-cleanup";
+import { getLocalTestRooms, isLocalTestModeEnabled } from "@/lib/local-test-mode";
 import { revalidatePath } from "next/cache";
 
 const MAX_DAYS_AHEAD = 7;
@@ -61,6 +62,11 @@ function parseDateAndTimeAsUtc(dateStr: string, startStr: string, tzOffsetMinute
 export async function createBooking(formData: FormData) {
   const session = await getSession();
   if (!session) return { error: "Not signed in." };
+
+  if (isLocalTestModeEnabled()) {
+    return { success: true };
+  }
+
   await cleanupExpiredBookings();
 
   const roomId = formData.get("room_id") as string;
@@ -120,6 +126,11 @@ export async function createBooking(formData: FormData) {
 export async function cancelBooking(bookingId: string) {
   const session = await getSession();
   if (!session) return { error: "Not signed in." };
+
+  if (isLocalTestModeEnabled()) {
+    return { success: true };
+  }
+
   await cleanupExpiredBookings();
 
   const supabase = createAdminClient();
@@ -135,6 +146,10 @@ export async function cancelBooking(bookingId: string) {
 }
 
 export async function getAvailableRooms(dateStr: string, startStr: string, duration: number, tzOffsetMinutesRaw?: number) {
+  if (isLocalTestModeEnabled()) {
+    return { rooms: getLocalTestRooms() };
+  }
+
   await cleanupExpiredBookings();
   const supabase = createAdminClient();
   
@@ -160,6 +175,16 @@ export async function getAvailableRooms(dateStr: string, startStr: string, durat
 }
 
 export async function getAvailableSlots(roomId: string, dateStr: string, tzOffsetMinutesRaw?: number) {
+  if (isLocalTestModeEnabled()) {
+    return {
+      slots: [
+        { start: "09:00", end: "10:00" },
+        { start: "10:00", end: "11:00" },
+        { start: "11:00", end: "12:00" },
+      ],
+    };
+  }
+
   await cleanupExpiredBookings();
   const supabase = createAdminClient();
   const tzOffsetMinutes = normalizeTzOffset(tzOffsetMinutesRaw);

@@ -1,12 +1,20 @@
 "use server";
 
 import { createAdminClient } from "@/utils/supabase/admin";
+import { getLocalTestEmail, isLocalTestModeEnabled } from "@/lib/local-test-mode";
 import { setSession } from "@/lib/session";
 import { redirect } from "next/navigation";
 
 export async function signIn(formData: FormData) {
   const raw = formData.get("email");
   const email = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+
+  if (isLocalTestModeEnabled()) {
+    const bypassEmail = getLocalTestEmail(email);
+    await setSession(bypassEmail);
+    redirect("/dashboard");
+  }
+
   if (!email) {
     return { error: "Please enter your email." };
   }
